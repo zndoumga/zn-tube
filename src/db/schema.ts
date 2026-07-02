@@ -8,6 +8,7 @@ import {
   primaryKey,
   index,
 } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 
 export const channels = pgTable("channels", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -118,3 +119,43 @@ export const notes = pgTable("notes", {
     .notNull()
     .defaultNow(),
 });
+
+export const channelsRelations = relations(channels, ({ many }) => ({
+  videos: many(videos),
+}));
+
+export const videosRelations = relations(videos, ({ one, many }) => ({
+  channel: one(channels, {
+    fields: [videos.channelId],
+    references: [channels.id],
+  }),
+  recapItems: many(recapItems),
+  videoTopics: many(videoTopics),
+  note: one(notes, { fields: [videos.id], references: [notes.videoId] }),
+}));
+
+export const recapItemsRelations = relations(recapItems, ({ one }) => ({
+  video: one(videos, {
+    fields: [recapItems.videoId],
+    references: [videos.id],
+  }),
+}));
+
+export const topicsRelations = relations(topics, ({ many }) => ({
+  videoTopics: many(videoTopics),
+}));
+
+export const videoTopicsRelations = relations(videoTopics, ({ one }) => ({
+  video: one(videos, {
+    fields: [videoTopics.videoId],
+    references: [videos.id],
+  }),
+  topic: one(topics, {
+    fields: [videoTopics.topicId],
+    references: [topics.id],
+  }),
+}));
+
+export const notesRelations = relations(notes, ({ one }) => ({
+  video: one(videos, { fields: [notes.videoId], references: [videos.id] }),
+}));

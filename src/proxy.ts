@@ -7,7 +7,7 @@ export const config = {
   ],
 };
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const cookie = req.cookies.get(SESSION_COOKIE_NAME)?.value;
   const valid = await verifySessionCookieValue(cookie);
 
