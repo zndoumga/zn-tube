@@ -58,8 +58,24 @@ For every saved video, the app generates and stores:
 ### V2
 - **Auto-sync liked videos** (Google OAuth + YouTube Data API): like a video on
   YouTube, it appears in the app already processed.
-- **Cross-library Q&A** — semantic search + "chat with your library"
-  (embeddings + vector search over recaps/transcripts).
+- **RAG chatbot ("ask my library")** — a chat interface that answers questions
+  primarily from your saved videos, **citing the videos it draws from**, and
+  can supplement with the model's general knowledge (clearly labeled as such).
+
+  How it works:
+  1. **Index**: chunk transcripts + recaps → generate embeddings → store in
+     `pgvector` on the same Neon Postgres database.
+  2. **Retrieve**: embed the question, pull the top-k most relevant chunks.
+  3. **Answer**: pass the chunks to Claude as document blocks with the API's
+     native **citations** feature enabled — answers come back with precise
+     per-passage citations we render as links to the source video (with
+     timestamps where available).
+  4. The system prompt instructs Claude to answer from the retrieved video
+     content first, and to clearly distinguish anything added from its own
+     training knowledge ("From your videos: … / Beyond your videos: …").
+
+  Embeddings: Anthropic doesn't ship an embeddings model; use Voyage AI
+  (Anthropic's recommended partner, free tier) or an open-source model.
 
 ### Later / ideas parked
 - Browser extension ("save to library" on the YouTube page).
@@ -69,9 +85,21 @@ For every saved video, the app generates and stores:
 ## Architecture (proposed)
 
 - **Frontend**: Next.js (React) on Vercel — responsive web app, PWA-ready.
-- **Backend/DB**: Supabase — Postgres, auth, storage; `pgvector` ready for V2 Q&A.
-- **Transcript**: YouTube captions (timedtext / transcript endpoints), fallback
-  strategies for videos without captions.
+- **Database**: Neon Postgres via the Vercel Marketplace (Vercel's serverless
+  Postgres offering) — free tier, and supports `pgvector` for the V2 RAG
+  chatbot. Auth is simple single-user (env-var password / magic link) since
+  we're not using Supabase's bundled auth.
+- **Transcript pipeline** (free-first fallback chain):
+  1. **YouTube captions** — manual or auto-generated subtitles via the
+     transcript endpoints. Free; covers the vast majority of videos, since
+     YouTube auto-captions almost everything.
+  2. **Speech-to-text fallback** — for videos with no captions at all:
+     download the audio track and transcribe with **Whisper** via a
+     free-tier host (Groq's Whisper API — fast, generous free tier — or
+     Cloudflare Workers AI). Self-hosted `faster-whisper` is the fully-free
+     option if we ever run our own worker.
+  3. If both fail (rare), save the video with metadata only and flag it
+     "no transcript — recap unavailable".
 - **AI**: Claude API — one structured-output extraction call per video
   (summary, actions, tips, steps, type, topics), plus digest-generation calls
   per topic.
